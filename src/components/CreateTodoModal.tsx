@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { X, Calendar, Clock, Flag, Briefcase, Star, User } from 'lucide-react';
+import { X, Calendar, Clock, Flag, Briefcase, Star } from 'lucide-react';
 
 interface TodoItem {
   id: string;
@@ -15,10 +15,14 @@ interface TodoItem {
 interface CreateTodoModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onCreateTodo: (todo: Omit<TodoItem, 'id' | 'completed'>) => void;
+  onCreateTodo: (todo: Omit<TodoItem, 'id' | 'completed'>) => Promise<void>;
 }
 
-const CreateTodoModal: React.FC<CreateTodoModalProps> = ({ isOpen, onClose, onCreateTodo }) => {
+const CreateTodoModal: React.FC<CreateTodoModalProps> = ({ 
+    isOpen, 
+    onClose, 
+    onCreateTodo 
+}) => {
   const [formData, setFormData] = useState({
     title: '',
     description: '',
@@ -29,6 +33,10 @@ const CreateTodoModal: React.FC<CreateTodoModalProps> = ({ isOpen, onClose, onCr
   });
 
   const [errors, setErrors] = useState<{ [key: string]: string }>({});
+  const [serverError, setServerError] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
+
+  if (!isOpen) return null;
 
   const categories = [
     { id: 'work', label: '仕事', icon: Briefcase },
@@ -36,10 +44,22 @@ const CreateTodoModal: React.FC<CreateTodoModalProps> = ({ isOpen, onClose, onCr
     { id: 'urgent', label: '緊急', icon: Clock }
   ];
 
-  const priorities = [
-    { id: 'high', label: '高', color: 'bg-red-100 text-red-700 border-red-200' },
-    { id: 'medium', label: '中', color: 'bg-yellow-100 text-yellow-700 border-yellow-200' },
-    { id: 'low', label: '低', color: 'bg-green-100 text-green-700 border-green-200' }
+const priorities = [
+    { 
+      id: 'high', 
+      label: '高', 
+      color: 'bg-red-100 text-red-700 border-red-200' 
+    },
+    { 
+      id: 'medium', 
+      label: '中', 
+      color: 'bg-yellow-100 text-yellow-700 border-yellow-200' 
+    },
+    { 
+      id: 'low', 
+      label: '低', 
+      color: 'bg-green-100 text-green-700 border-green-200' 
+    },
   ];
 
   const validateForm = () => {
@@ -65,11 +85,21 @@ const CreateTodoModal: React.FC<CreateTodoModalProps> = ({ isOpen, onClose, onCr
     return Object.keys(newErrors).length === 0;
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+    const handleInputChange = (field: string, value: string) => {
+    setFormData(prev => ({ ...prev, [field]: value }));
+    if (errors[field]) {
+      setErrors(prev => ({ ...prev, [field]: '' }));
+    }
+  };
+
+    const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
-    if (validateForm()) {
-      onCreateTodo(formData);
+
+    if (!validateForm()) return;
+
+    setIsLoading(true);
+    try {
+      await onCreateTodo(formData);
       setFormData({
         title: '',
         description: '',
@@ -79,20 +109,20 @@ const CreateTodoModal: React.FC<CreateTodoModalProps> = ({ isOpen, onClose, onCr
         estimatedTime: ''
       });
       setErrors({});
+      setServerError(null);
       onClose();
+    } catch (err: any) {
+      if (err.response?.data?.errors) {
+        setServerError(err.response.data.errors.join(", "));
+      } else {
+        setServerError("タスクの作成に失敗しました");
+      }
+    } finally {
+      setIsLoading(false);
     }
   };
 
-  const handleInputChange = (field: string, value: string) => {
-    setFormData(prev => ({ ...prev, [field]: value }));
-    if (errors[field]) {
-      setErrors(prev => ({ ...prev, [field]: '' }));
-    }
-  };
-
-  if (!isOpen) return null;
-
-  return (
+ return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
       <div className="bg-white rounded-xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
         {/* Header */}
@@ -116,10 +146,10 @@ const CreateTodoModal: React.FC<CreateTodoModalProps> = ({ isOpen, onClose, onCr
             <input
               type="text"
               value={formData.title}
-              onChange={(e) => handleInputChange('title', e.target.value)}
+              onChange={(e) => handleInputChange("title", e.target.value)}
               placeholder="例: 新しいプロジェクトの企画書を作成する"
               className={`w-full px-4 py-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent transition-colors ${
-                errors.title ? 'border-red-300 bg-red-50' : 'border-gray-300'
+                errors.title ? "border-red-300 bg-red-50" : "border-gray-300"
               }`}
             />
             {errors.title && (
@@ -134,11 +164,11 @@ const CreateTodoModal: React.FC<CreateTodoModalProps> = ({ isOpen, onClose, onCr
             </label>
             <textarea
               value={formData.description}
-              onChange={(e) => handleInputChange('description', e.target.value)}
+              onChange={(e) => handleInputChange("description", e.target.value)}
               placeholder="タスクの詳細な説明を入力してください..."
               rows={4}
               className={`w-full px-4 py-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent transition-colors resize-none ${
-                errors.description ? 'border-red-300 bg-red-50' : 'border-gray-300'
+                errors.description ? "border-red-300 bg-red-50" : "border-gray-300"
               }`}
             />
             {errors.description && (
@@ -161,8 +191,8 @@ const CreateTodoModal: React.FC<CreateTodoModalProps> = ({ isOpen, onClose, onCr
                       key={category.id}
                       className={`flex items-center p-3 border rounded-lg cursor-pointer transition-colors ${
                         formData.category === category.id
-                          ? 'border-red-500 bg-red-50'
-                          : 'border-gray-300 hover:bg-gray-50'
+                          ? "border-red-500 bg-red-50"
+                          : "border-gray-300 hover:bg-gray-50"
                       }`}
                     >
                       <input
@@ -170,15 +200,26 @@ const CreateTodoModal: React.FC<CreateTodoModalProps> = ({ isOpen, onClose, onCr
                         name="category"
                         value={category.id}
                         checked={formData.category === category.id}
-                        onChange={(e) => handleInputChange('category', e.target.value)}
+                        onChange={(e) =>
+                          handleInputChange("category", e.target.value)
+                        }
                         className="sr-only"
                       />
-                      <Icon size={20} className={`mr-3 ${
-                        formData.category === category.id ? 'text-red-600' : 'text-gray-500'
-                      }`} />
-                      <span className={`font-medium ${
-                        formData.category === category.id ? 'text-red-700' : 'text-gray-700'
-                      }`}>
+                      <Icon
+                        size={20}
+                        className={`mr-3 ${
+                          formData.category === category.id
+                            ? "text-red-600"
+                            : "text-gray-500"
+                        }`}
+                      />
+                      <span
+                        className={`font-medium ${
+                          formData.category === category.id
+                            ? "text-red-700"
+                            : "text-gray-700"
+                        }`}
+                      >
                         {category.label}
                       </span>
                     </label>
@@ -198,8 +239,8 @@ const CreateTodoModal: React.FC<CreateTodoModalProps> = ({ isOpen, onClose, onCr
                     key={priority.id}
                     className={`flex items-center p-3 border rounded-lg cursor-pointer transition-colors ${
                       formData.priority === priority.id
-                        ? 'border-red-500 bg-red-50'
-                        : 'border-gray-300 hover:bg-gray-50'
+                        ? "border-red-500 bg-red-50"
+                        : "border-gray-300 hover:bg-gray-50"
                     }`}
                   >
                     <input
@@ -207,13 +248,25 @@ const CreateTodoModal: React.FC<CreateTodoModalProps> = ({ isOpen, onClose, onCr
                       name="priority"
                       value={priority.id}
                       checked={formData.priority === priority.id}
-                      onChange={(e) => handleInputChange('priority', e.target.value as 'high' | 'medium' | 'low')}
+                      onChange={(e) =>
+                        handleInputChange(
+                          "priority",
+                          e.target.value as "high" | "medium" | "low"
+                        )
+                      }
                       className="sr-only"
                     />
-                    <Flag size={20} className={`mr-3 ${
-                      formData.priority === priority.id ? 'text-red-600' : 'text-gray-500'
-                    }`} />
-                    <span className={`px-3 py-1 rounded-full text-sm font-medium ${priority.color}`}>
+                    <Flag
+                      size={20}
+                      className={`mr-3 ${
+                        formData.priority === priority.id
+                          ? "text-red-600"
+                          : "text-gray-500"
+                      }`}
+                    />
+                    <span
+                      className={`px-3 py-1 rounded-full text-sm font-medium ${priority.color}`}
+                    >
                       優先度: {priority.label}
                     </span>
                   </label>
@@ -233,9 +286,9 @@ const CreateTodoModal: React.FC<CreateTodoModalProps> = ({ isOpen, onClose, onCr
                 <input
                   type="date"
                   value={formData.dueDate}
-                  onChange={(e) => handleInputChange('dueDate', e.target.value)}
+                  onChange={(e) => handleInputChange("dueDate", e.target.value)}
                   className={`w-full px-4 py-3 pl-12 border rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent transition-colors ${
-                    errors.dueDate ? 'border-red-300 bg-red-50' : 'border-gray-300'
+                    errors.dueDate ? "border-red-300 bg-red-50" : "border-gray-300"
                   }`}
                 />
                 <Calendar className="absolute left-4 top-3.5 h-5 w-5 text-gray-400" />
@@ -254,19 +307,30 @@ const CreateTodoModal: React.FC<CreateTodoModalProps> = ({ isOpen, onClose, onCr
                 <input
                   type="text"
                   value={formData.estimatedTime}
-                  onChange={(e) => handleInputChange('estimatedTime', e.target.value)}
+                  onChange={(e) =>
+                    handleInputChange("estimatedTime", e.target.value)
+                  }
                   placeholder="例: 2時間, 30分, 1日"
                   className={`w-full px-4 py-3 pl-12 border rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent transition-colors ${
-                    errors.estimatedTime ? 'border-red-300 bg-red-50' : 'border-gray-300'
+                    errors.estimatedTime
+                      ? "border-red-300 bg-red-50"
+                      : "border-gray-300"
                   }`}
                 />
                 <Clock className="absolute left-4 top-3.5 h-5 w-5 text-gray-400" />
               </div>
               {errors.estimatedTime && (
-                <p className="mt-1 text-sm text-red-600">{errors.estimatedTime}</p>
+                <p className="mt-1 text-sm text-red-600">
+                  {errors.estimatedTime}
+                </p>
               )}
             </div>
           </div>
+
+          {/* Server Error */}
+          {serverError && (
+            <p className="text-sm text-red-600 text-center">{serverError}</p>
+          )}
 
           {/* Action Buttons */}
           <div className="flex items-center justify-end space-x-4 pt-6 border-t border-gray-200">
@@ -274,14 +338,24 @@ const CreateTodoModal: React.FC<CreateTodoModalProps> = ({ isOpen, onClose, onCr
               type="button"
               onClick={onClose}
               className="px-6 py-3 text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-lg font-medium transition-colors"
+              disabled={isLoading}
             >
               キャンセル
             </button>
             <button
               type="submit"
-              className="px-6 py-3 bg-red-600 text-white hover:bg-red-700 rounded-lg font-medium transition-colors flex items-center space-x-2"
+              disabled={isLoading}
+              className={`px-6 py-3 rounded-lg font-medium transition-colors flex items-center space-x-2 ${
+                isLoading
+                  ? "bg-gray-400 cursor-not-allowed"
+                  : "bg-red-600 text-white hover:bg-red-700"
+              }`}
             >
-              <span>タスクを作成</span>
+              {isLoading ? (
+                <span>作成中...</span>
+              ) : (
+                <span>タスクを作成</span>
+              )}
             </button>
           </div>
         </form>

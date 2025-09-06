@@ -1,134 +1,144 @@
-import React, { useState } from 'react';
-import Header from './components/Header';
-import Sidebar from './components/Sidebar';
-import MainContent from './components/MainContent';
-import CreateTodoModal from './components/CreateTodoModal';
+// TaskTube/src/App.tsx
+import React, { useEffect, useState } from "react";
+import Header from "./components/Header";
+import Sidebar from "./components/Sidebar";
+import MainContent from "./components/MainContent";
+import CreateTodoModal from "./components/CreateTodoModal";
+import axios from "axios";
 
 interface TodoItem {
   id: string;
   title: string;
   description: string;
-  priority: 'high' | 'medium' | 'low';
+  priority: "high" | "medium" | "low";
   dueDate: string;
   completed: boolean;
   category: string;
   estimatedTime: string;
 }
 
+const API_BASE = "http://localhost:3000/api/v1";
+
 const App: React.FC = () => {
-  const [selectedCategory, setSelectedCategory] = useState('home');
+  const [selectedCategory, setSelectedCategory] = useState("home");
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
-  const [todos, setTodos] = useState<TodoItem[]>([
-    {
-      id: '1',
-      title: '新しいプロジェクトの企画書を作成する',
-      description: 'クライアントとの打ち合わせで使用する企画書を作成し、必要な資料をまとめる。市場調査データも含める必要がある。',
-      priority: 'high',
-      dueDate: '2025-01-25',
-      completed: false,
-      category: 'work',
-      estimatedTime: '3時間'
-    },
-    {
-      id: '2',
-      title: '週次チームミーティングの準備',
-      description: 'チームミーティングのアジェンダ作成と資料準備。進捗報告と課題の整理を行う。',
-      priority: 'medium',
-      dueDate: '2025-01-22',
-      completed: false,
-      category: 'work',
-      estimatedTime: '1時間'
-    },
-    {
-      id: '3',
-      title: '歯医者の予約を取る',
-      description: '定期検診の予約を取る。できれば来月の第2週あたりで調整したい。',
-      priority: 'low',
-      dueDate: '2025-01-30',
-      completed: false,
-      category: 'personal',
-      estimatedTime: '15分'
-    },
-    {
-      id: '4',
-      title: 'システムのセキュリティ更新',
-      description: '重要なセキュリティアップデートを適用し、システムの脆弱性チェックを実施する。',
-      priority: 'high',
-      dueDate: '2025-01-21',
-      completed: false,
-      category: 'work',
-      estimatedTime: '2時間'
-    },
-    {
-      id: '5',
-      title: '読書時間の確保',
-      description: '今月は技術書を2冊読む予定。毎日30分は読書時間を確保する。',
-      priority: 'medium',
-      dueDate: '2025-01-31',
-      completed: false,
-      category: 'personal',
-      estimatedTime: '30分/日'
-    },
-    {
-      id: '6',
-      title: 'データベース設計の見直し',
-      description: 'パフォーマンス問題を解決するため、データベース設計を見直し最適化を行う。',
-      priority: 'high',
-      dueDate: '2025-01-23',
-      completed: false,
-      category: 'work',
-      estimatedTime: '4時間'
-    },
-    {
-      id: '7',
-      title: 'APIドキュメントの更新',
-      description: '新しいエンドポイントの追加に伴い、APIドキュメントを更新する。',
-      priority: 'medium',
-      dueDate: '2025-01-28',
-      completed: true,
-      category: 'work',
-      estimatedTime: '1.5時間'
-    },
-    {
-      id: '8',
-      title: 'ジムの入会手続き',
-      description: '健康管理のため、近所のジムに入会する。見学も兼ねて手続きを行う。',
-      priority: 'low',
-      dueDate: '2025-02-01',
-      completed: true,
-      category: 'personal',
-      estimatedTime: '1時間'
+  const [todos, setTodos] = useState<TodoItem[]>([]);
+  const [allTodos, setAllTodos] = useState<TodoItem[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+
+  // Rails の snake_case を camelCase に変換
+  const mapTodo = (todo: any): TodoItem => ({
+    id: todo.id.toString(),
+    title: todo.title,
+    description: todo.description,
+    priority: todo.priority,
+    dueDate: todo.due_date,
+    completed: todo.completed,
+    category: todo.category,
+    estimatedTime: todo.estimated_time,
+  });
+
+  const fetchTodos = async () => {
+    setIsLoading(true);
+    try {
+      let params: any = {};
+      if (selectedCategory === "completed") {
+        params.completed = true;
+      } else if (selectedCategory !== "home") {
+        params.category = selectedCategory;
+      }
+
+      const res = await axios.get(`${API_BASE}/todos`, { params });
+      const mapped = res.data.map(mapTodo);
+      setTodos(mapped);
+      console.log("Fetched todos:", mapped);
+    } catch (err) {
+      console.error("Failed to fetch todos", err);
+      setTodos([]);
+    } finally {
+      setIsLoading(false);
     }
-  ]);
-
-  const handleToggleComplete = (id: string) => {
-    setTodos(prevTodos =>
-      prevTodos.map(todo =>
-        todo.id === id ? { ...todo, completed: !todo.completed } : todo
-      )
-    );
   };
 
-  const handleCreateTodo = (newTodo: Omit<TodoItem, 'id' | 'completed'>) => {
-    const todo: TodoItem = {
-      ...newTodo,
-      id: Date.now().toString(),
-      completed: false
-    };
-    setTodos(prev => [todo, ...prev]);
+  const fetchAllTodos = async () => {
+    try {
+      const res = await axios.get(`${API_BASE}/todos`);
+      const mapped = res.data.map(mapTodo);
+      setAllTodos(mapped);
+    } catch (err) {
+      console.error("Failed to fetch all todos", err);
+      setAllTodos([]);
+    }
   };
+
+  useEffect(() => {
+    fetchTodos();
+    fetchAllTodos(); // ホームでもカテゴリでも最新を取得
+  }, [selectedCategory]);
+
+  const handleCreateTodo = async (newTodo: Omit<TodoItem, "id" | "completed">) => {
+    try {
+      const payload = {
+        title: newTodo.title,
+        description: newTodo.description,
+        priority: newTodo.priority,
+        due_date: newTodo.dueDate,
+        category: newTodo.category,
+        estimated_time: newTodo.estimatedTime,
+      };
+
+      await axios.post(`${API_BASE}/todos`, { todo: payload });
+      await fetchTodos();
+      await fetchAllTodos();
+    } catch (err) {
+      console.error("Failed to create todo", err);
+    }
+  };
+
+  const handleToggleComplete = async (id: string) => {
+    try {
+      const todo = todos.find((t) => t.id === id);
+      if (!todo) return;
+
+      const res = await axios.put(`${API_BASE}/todos/${id}`, {
+        todo: { completed: !todo.completed },
+      });
+
+      const mapped = mapTodo(res.data);
+      setTodos((prev) => prev.map((t) => (t.id === id ? mapped : t)));
+      await fetchAllTodos();
+    } catch (err) {
+      console.error("Failed to toggle todo", err);
+    }
+  };
+
+  const categoryCount = allTodos.reduce((acc, todo) => {
+    if (!acc[todo.category]) acc[todo.category] = 0;
+    acc[todo.category]++;
+    return acc;
+  }, {} as Record<string, number>);
+
+  const completedCount = allTodos.filter((t) => t.completed).length;
 
   return (
     <div className="min-h-screen bg-gray-50">
       <Header onCreateClick={() => setIsCreateModalOpen(true)} />
-      <Sidebar 
-        selectedCategory={selectedCategory} 
+      <Sidebar
+        selectedCategory={selectedCategory}
         onCategorySelect={setSelectedCategory}
+        counts={{
+          work: categoryCount["work"] || 0,
+          personal: categoryCount["personal"] || 0,
+          urgent: categoryCount["urgent"] || 0,
+          completed: completedCount,
+          archive: 0,
+        }}
       />
-      <MainContent 
+      <MainContent
         selectedCategory={selectedCategory}
         todos={todos}
         onToggleComplete={handleToggleComplete}
+        isLoading={isLoading}
       />
       <CreateTodoModal
         isOpen={isCreateModalOpen}
